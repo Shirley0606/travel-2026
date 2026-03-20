@@ -390,53 +390,48 @@ function renderList(){
     });
     wrap.addEventListener('drop',e=>e.preventDefault());
 
-    // Mobile touch drag
-    const handle=wrap.querySelector('.drag-handle');
-    let touchStartY=0,touchStartIdx=0,touchClone=null;
-    handle.addEventListener('touchstart',e=>{
+    // ── Touch drag (long press) ──
+    const cardEl=wrap.querySelector('.item-card');
+    let tY0=0,tX0=0,tClone=null,tTimer=null,tActive=false;
+    cardEl.addEventListener('touchstart',e=>{
+      tY0=e.touches[0].clientY; tX0=e.touches[0].clientX; tActive=false;
+      tTimer=setTimeout(()=>{
+        tActive=true; dragSrcIdx=idx;
+        try{navigator.vibrate(40);}catch(x){}
+        cardEl.classList.add('dragging');
+        const r=wrap.getBoundingClientRect();
+        tClone=cardEl.cloneNode(true);
+        tClone.style.cssText=`position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;z-index:999;opacity:.88;pointer-events:none;box-shadow:0 16px 48px rgba(0,0,0,.7);border-radius:14px;background:#1a1e2a;`;
+        document.body.appendChild(tClone);
+      },350);
+    },{passive:true});
+    cardEl.addEventListener('touchmove',e=>{
+      const dy=e.touches[0].clientY-tY0;
+      const dx=e.touches[0].clientX-tX0;
+      if(!tActive){if(Math.abs(dy)>10||Math.abs(dx)>10){clearTimeout(tTimer);}return;}
       e.preventDefault();
-      const t=e.touches[0];
-      touchStartY=t.clientY;
-      touchStartIdx=idx;
-      dragSrcIdx=idx;
-      wrap.querySelector('.item-card').classList.add('dragging');
-      // Create floating clone
-      touchClone=wrap.querySelector('.item-card').cloneNode(true);
-      touchClone.style.cssText=`position:fixed;left:0;right:0;margin:0 16px;z-index:500;opacity:.9;pointer-events:none;transform:translateY(${wrap.getBoundingClientRect().top}px);box-shadow:0 8px 32px rgba(0,0,0,.5);`;
-      document.body.appendChild(touchClone);
+      if(tClone){const r0=wrap.getBoundingClientRect();tClone.style.top=(r0.top+dy)+'px';}
+      const ty=e.touches[0].clientY;
+      const ws=document.querySelectorAll('#itineraryList .card-wrapper');
+      let ti=DAYS[currentDayIdx].items.length;
+      ws.forEach((w,wi)=>{const r=w.getBoundingClientRect();if(ty>=r.top&&ty<=r.bottom){ti=ty<r.top+r.height/2?wi:wi+1;}});
+      if(dragOverIdx!==ti){dragOverIdx=ti;clearDropInds();const ind=document.getElementById('drop-'+ti)||document.getElementById('drop-fin');if(ind)ind.classList.add('visible');}
     },{passive:false});
-
-    handle.addEventListener('touchmove',e=>{
-      e.preventDefault();
-      const t=e.touches[0];
-      const dy=t.clientY-touchStartY;
-      if(touchClone){
-        touchClone.style.transform=`translateY(${wrap.getBoundingClientRect().top+dy}px)`;
-      }
-      // Find target position
-      const wrappers=document.querySelectorAll('#itineraryList .card-wrapper');
-      let targetIdx=touchStartIdx;
-      wrappers.forEach((w,wi)=>{
-        const r=w.getBoundingClientRect();
-        if(t.clientY>r.top&&t.clientY<r.bottom){
-          targetIdx=t.clientY<r.top+r.height/2?wi:wi+1;
-        }
-      });
-      if(dragOverIdx!==targetIdx){
-        dragOverIdx=targetIdx;
-        clearDropInds();
-        const ind=document.getElementById('drop-'+targetIdx)||document.getElementById('drop-fin');
-        if(ind)ind.classList.add('visible');
-      }
-    },{passive:false});
-
-    handle.addEventListener('touchend',()=>{
-      if(touchClone){touchClone.remove();touchClone=null;}
-      wrap.querySelector('.item-card').classList.remove('dragging');
+    cardEl.addEventListener('touchend',()=>{
+      clearTimeout(tTimer);
+      if(tClone){tClone.remove();tClone=null;}
+      cardEl.classList.remove('dragging');
       clearDropInds();
-      if(dragOverIdx!==null&&dragOverIdx!==dragSrcIdx)reorderItems(dragSrcIdx,dragOverIdx);
-      dragSrcIdx=null;dragOverIdx=null;
+      if(tActive&&dragOverIdx!==null&&dragOverIdx!==dragSrcIdx)reorderItems(dragSrcIdx,dragOverIdx);
+      tActive=false;dragSrcIdx=null;dragOverIdx=null;
     });
+    cardEl.addEventListener('touchcancel',()=>{
+      clearTimeout(tTimer);
+      if(tClone){tClone.remove();tClone=null;}
+      cardEl.classList.remove('dragging');
+      clearDropInds();tActive=false;dragSrcIdx=null;dragOverIdx=null;
+    });
+
     list.appendChild(wrap);
   });
   const fin=document.createElement('div');
